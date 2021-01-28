@@ -18,9 +18,8 @@ height: 200px;
 
     <script>
         $(document).ready(function(){
-            alert('ready') ;
+
            startGame();
-           
 
         }) ;
 
@@ -57,28 +56,26 @@ function updateScore()
 
     $("#selectImg").attr("class" ,  "btn btn-danger")
     document.getElementById("selectImg").disabled = true; 
-    //debugger ;
-    //alert('update') ;
     console.debug ;
     var img_user =$("#imgUser").attr("src") ;
     var img_computer =  $("#imgComputer").attr("src") ;
     var  userScore = $("#userScore").text().trim() ;
     var computerScore = $("#computerScore").text().trim() ;
-    var hasNewPoint = false ; 
+    var catchNewPoint = false ; 
     if(img_user == "paper.png" &&  img_computer == "rock.png") 
     {
         userScore = parseInt(userScore) +1  ;
-        hasNewPoint =true ;
+        catchNewPoint =true ;
     }
     else  if(img_user == "rock.png" &&  img_computer == "scissors.png") 
     {
         userScore = parseInt(userScore) +1 ;
-        hasNewPoint = true; 
+        catchNewPoint = true; 
     }
     else  if(img_user == "scissors.png" &&  img_computer == "paper.png") 
     {
         userScore = parseInt(userScore) +1 ;
-        hasNewPoint =true; 
+        catchNewPoint =true; 
     }
     else
     {
@@ -87,11 +84,10 @@ function updateScore()
     $("#userScore").text( userScore) ;
     $("#computerScore").text( computerScore) ;
 
-    if(hasNewPoint) 
+    if(catchNewPoint) 
     {
         alert("Congratulation, You Win!") ;
     }
-    //var imgArr = ["paper.png" , "rock.png" , "scissors.png"]
 }
 
     </script>
