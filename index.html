@@ -6,7 +6,7 @@
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"/>
     </css>
    
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+     <script src="jquery.min.js"></script>
 
     <style>
           .imgstyle {
@@ -33,6 +33,10 @@ height: 200px;
         }
         function changeImages()
         {
+            // enable re-select img by user 
+            document.getElementById("selectImg").disabled = false; 
+        
+            $("#selectImg").attr("class" , "btn btn-success") ;
            var imgArr = ["paper.png" , "rock.png" , "scissors.png"]
             // expected output: 0, 1 or 2
            var user_indexImg = getRandomInt(3);
@@ -50,25 +54,31 @@ height: 200px;
 
 function updateScore()
 {
-    debugger ;
+
+    $("#selectImg").attr("class" ,  "btn btn-danger")
+    document.getElementById("selectImg").disabled = true; 
+    //debugger ;
     //alert('update') ;
     console.debug ;
     var img_user =$("#imgUser").attr("src") ;
     var img_computer =  $("#imgComputer").attr("src") ;
     var  userScore = $("#userScore").text().trim() ;
     var computerScore = $("#computerScore").text().trim() ;
-
+    var hasNewPoint = false ; 
     if(img_user == "paper.png" &&  img_computer == "rock.png") 
     {
-        userScore = parseInt(userScore) +1  
+        userScore = parseInt(userScore) +1  ;
+        hasNewPoint =true ;
     }
     else  if(img_user == "rock.png" &&  img_computer == "scissors.png") 
     {
-        userScore = parseInt(userScore) +1 
+        userScore = parseInt(userScore) +1 ;
+        hasNewPoint = true; 
     }
     else  if(img_user == "scissors.png" &&  img_computer == "paper.png") 
     {
-        userScore = parseInt(userScore) +1 
+        userScore = parseInt(userScore) +1 ;
+        hasNewPoint =true; 
     }
     else
     {
@@ -77,6 +87,10 @@ function updateScore()
     $("#userScore").text( userScore) ;
     $("#computerScore").text( computerScore) ;
 
+    if(hasNewPoint) 
+    {
+        alert("Congratulation, You Win!") ;
+    }
     //var imgArr = ["paper.png" , "rock.png" , "scissors.png"]
 }
 
@@ -116,7 +130,7 @@ function updateScore()
 
         <tr>
             <td style="text-align: center;">
-                  <input type="button" value="select" onclick="updateScore()" /> 
+                  <input id= "selectImg" type="button" value="select" onclick="updateScore()" /> 
             </td>
             <td>
 
