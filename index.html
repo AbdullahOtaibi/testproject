@@ -19,7 +19,7 @@ height: 200px;
     <script>
         $(document).ready(function(){
             alert('ready') ;
-          //  startGame();
+           startGame();
            
 
         }) ;
@@ -27,7 +27,7 @@ height: 200px;
         function startGame()
         {
             changeImages(); 
-           setInterval(startGame,1000);
+            setTimeout(startGame,1000);
           
           
         }
@@ -46,6 +46,38 @@ height: 200px;
 
         function getRandomInt(max) {
   return Math.floor(Math.random() * Math.floor(max));
+}
+
+function updateScore()
+{
+    debugger ;
+    //alert('update') ;
+    console.debug ;
+    var img_user =$("#imgUser").attr("src") ;
+    var img_computer =  $("#imgComputer").attr("src") ;
+    var  userScore = $("#userScore").text().trim() ;
+    var computerScore = $("#computerScore").text().trim() ;
+
+    if(img_user == "paper.png" &&  img_computer == "rock.png") 
+    {
+        userScore = parseInt(userScore) +1  
+    }
+    else  if(img_user == "rock.png" &&  img_computer == "scissors.png") 
+    {
+        userScore = parseInt(userScore) +1 
+    }
+    else  if(img_user == "scissors.png" &&  img_computer == "paper.png") 
+    {
+        userScore = parseInt(userScore) +1 
+    }
+    else
+    {
+        computerScore =parseInt(computerScore) +1  
+    }
+    $("#userScore").text( userScore) ;
+    $("#computerScore").text( computerScore) ;
+
+    //var imgArr = ["paper.png" , "rock.png" , "scissors.png"]
 }
 
     </script>
@@ -82,7 +114,16 @@ height: 200px;
             <td style="text-align: center;">  <span id= "computerScore">0</span> </td>
         </tr>
 
-        
+        <tr>
+            <td style="text-align: center;">
+                  <input type="button" value="select" onclick="updateScore()" /> 
+            </td>
+            <td>
+
+            </td>
+        </tr>
+
+
        
     </table>
 </div>
