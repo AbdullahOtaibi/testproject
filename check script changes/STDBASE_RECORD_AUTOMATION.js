@@ -30,6 +30,8 @@ Description : JSON Example :
           
         },
         "action": {
+          "updateOpenDate": true,
+          "saveCreationDate": true,
           "activateTask": [
             
           ],
@@ -151,6 +153,9 @@ try {
 		var useCalendarDays = rules.action.useCalendarDays;
 		var updateExpDate = rules.action.updateExpDate;
 		var primaryContactType = rules.action.primaryContactType;
+
+		var updateOpenDate = rules.action.updateOpenDate;
+		var saveCreationDate = rules.action.saveCreationDate;
 
 		useAppSpecificGroupNametmp = useAppSpecificGroupName;
 		// run preScript
@@ -461,6 +466,27 @@ function RecordAutomation() {
 		}
 	}
 
+	//prepare CapModel
+	var myTmpCap = null;
+	if (!isEmptyOrNull(saveCreationDate) || !isEmptyOrNull(updateOpenDate)) {
+		myTmpCap = aa.cap.getCap(capId).getOutput().getCapModel();
+
+	}
+	if (!isEmptyOrNull(saveCreationDate)) {
+		var oldUseAppSpecificGroupName = useAppSpecificGroupName;
+		useAppSpecificGroupName = false;
+
+		var formatted = myTmpCap.getFileDate();
+		formatted = new Date(formatted.getTime());
+		formatted = aa.util.formatDate(formatted, "MM/dd/YYYY");
+		editAppSpecific("Original Creation Date", formatted);
+		useAppSpecificGroupName = oldUseAppSpecificGroupName;
+	}//saveCreationDate
+	if (!isEmptyOrNull(updateOpenDate)) {
+		myTmpCap.setFileDate(new Date(aa.util.now()));
+		aa.cap.editCapByPK(myTmpCap);
+	}//updateOpenDate
+
 	// / run post script
 	if (!isEmptyOrNull(postScript)) {
 		eval(getScriptText(postScript, null, false));
@@ -472,7 +498,7 @@ function RecordAutomation() {
 function getDueDate() {
 	var formatedDate = "";
 	if (useCalendarDays == true && useCalendarDays != null && useCalendarDays != "") {
-		var today = new Date();
+		var today = new Date(aa.util.now());
 		today.setDate(today.getDate() + parseInt(daysOut));
 		var dd = today.getDate();
 		var mm = today.getMonth() + 1;

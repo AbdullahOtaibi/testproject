@@ -31,7 +31,7 @@ var cancel = false;
 var vScriptName = aa.env.getValue("ScriptCode");
 var vEventName = aa.env.getValue("EventName");
 
-var startDate = new Date();
+var startDate = new Date(aa.util.now());
 var startTime = startDate.getTime();
 var message =	"";									// Message String
 if (typeof debug === 'undefined') {

@@ -77,9 +77,43 @@ Notes:
 - Only Following is supported in Pageflow: Contact, APO , LP and Parcel
 - Copy Document is not supported in ACA
  *
+ * updated by:  Ali Hasan @02/05/2019 to resolve the copy contacts from/to parent and
+ * changes are: 
+ * 1. Method copyContactFromParent4ACA and contactAddFromUser4ACA removed
+ * 2. Methods added: copyContactFromParent,copyContactsFromParentByType,syncronizeContactsWithParent and syncronizeContactsWithParentByType
+ * 3. Edit the way Method copyContactsLocal is working to use the added methods to:
+ * a) Copy Direction is FROM_PARENT: call copyContactFromParent Method to work for both AV and ACA case to 
+ * copy data from parent with keep the existing reference contact id.
+ * b) Copy Direction is not FROM_PARENT: call the syncronizeContactsWithParent Method to 
+ *    copy/synchronize contacts to the parent record.
+ * c) Modify the declaration of isRenewal to be global variable.  
+ * 
+ * updated by:  Ali Hasan @02/13/2019 to resolve the copy LPs from/to parent and
+ * changes are: 
+ * 1. Methods added: syncronizeLPWithParent and updateFromRecordLicensedProf
+ * 2. Edit the way Method copyAppLPLocal is working to use the added methods by
+ *    call the syncronizeLPWithParent Method when Copy Direction is not FROM_PARENT to  
+ *    copy/synchronize LPs to the parent record.  
+ *    
+ * updated by: Ali Hasan @07/23/2019 edit copyAssetsLocal method to work as the following:
+ * When click on renewal button populate asset data from permit record to renewal record,   
+ * This option work on ACA & Back-office and work to clone data between two directions:
+ *   1)clone asset data from parent record to child record.
+ *   2)clone  asset data from child record to permit record.     
+ * Method Added: 
+ * 1) copyAssetsFromParent
+ * 2) syncronizeAssetsWithParent
+ * And other modification(s) is: Change the way to get capIdsArray by adding a code for this case
  */
-
+/*
+showMessage =true ;
+showDebug =true ;
+aa.env.setValue("ErrorMessage", "write something ");
+ */
 //CONSTANTS
+
+
+
 var TO_PARENT = 1;
 var FROM_PARENT = 2;
 var TO_CHILD = 3;
@@ -88,7 +122,7 @@ USAGE_TYPES["copyfromparent"] = FROM_PARENT;
 USAGE_TYPES["copytoparent"] = TO_PARENT;
 USAGE_TYPES["copytochild"] = TO_CHILD;
 
-// this function is added so this script would work on pageflow
+//this function is added so this script would work on pageflow
 function getScriptText(vScriptName, servProvCode, useProductScripts) {
 	if (!servProvCode)
 		servProvCode = aa.getServiceProviderCode();
@@ -106,7 +140,7 @@ function getScriptText(vScriptName, servProvCode, useProductScripts) {
 	}
 }
 
-// This should be included in all Configurable Scripts
+//This should be included in all Configurable Scripts
 eval(getScriptText("CONFIGURABLE_SCRIPTS_COMMON"));
 var scriptSuffix = "COPY_RECORD_DATA";
 
@@ -142,9 +176,9 @@ try {
 } catch (ex) {
 	logDebug("**ERROR: Exception while verification the rules for " + scriptSuffix + ". Error: " + ex);
 }
-
+var isRenewal;
 function copyRecordData(rules) {
-	var isRenewal = false;
+	isRenewal = false;
 	if (rules.action.hasOwnProperty("Renewal") && String(rules.action.Renewal) != "") {
 		isRenewal = rules.action.Renewal;
 	}
@@ -155,11 +189,28 @@ function copyRecordData(rules) {
 			logDebug("**WARN " + scriptSuffix + " renewal relation not exist, creating relation, parent=" + parentCapId);
 			var result = aa.cap.createRenewalCap(parentCapId, capId, true);
 		}
+		else
+		{
+			return;
+		}
 	}//renewal=true
-
+    
 	//set usageType, toLower() : avoid upper/lower mistakes in JSON
 	var usageType = USAGE_TYPES[rules.action.usageType.toLowerCase()];
-	capIdsArray = getCapIdsArray(rules.criteria.recordType, usageType, isRenewal);
+	var getCapRenewalResult = aa.cap.getProjectByChildCapID(capId, "Renewal", null);
+	if(usageType == TO_PARENT && getCapRenewalResult.getSuccess())
+	{   
+        logDebug("renewal record & copy to parent")
+		capIdsArray = new Array();
+		var tmpParentId = getParentCapID4Renewal();
+		if (tmpParentId)
+			capIdsArray.push(tmpParentId);
+	}
+	else
+	{   
+        logDebug("parent record or amend record or ( renewal record & copy from parent ) ")
+		capIdsArray = getCapIdsArray(rules.criteria.recordType, usageType, isRenewal);
+	}
 	if (capIdsArray == null || capIdsArray.length == 0) {
 		logDebug("**INFO capIdsArray empty or null, usageType=" + rules.action.usageType);
 		return;
@@ -225,26 +276,35 @@ function copyContactsLocal(capIdsArray, copyTypes, copyDirection) {
 			return;
 		}
 
-		//ACA PageFlow/ FROM_PARENT
-		if (controlString.equalsIgnoreCase("Pageflow") && copyDirection == FROM_PARENT) {
+		if(copyDirection == FROM_PARENT)
+		{
 			var currCapModel = aa.env.getValue('CapModel');
-			copyContactFromParent4ACA(currCapModel, srcDestArray["src"], copyTypes);
-			//copy from 1st parent only (other will just overwrite)
+            if(isPublicUser && !isRenewal && (!controlString.equalsIgnoreCase("ApplicationSubmitAfter") && !isRenewal))
+			{
+				var contactsGroup = currCapModel.getContactsGroup();
+				if (contactsGroup.size() > 0) {
+					return;
+				}
+			}			
+			if (copyTypes == null)
+			{
+				copyContactFromParent(srcDestArray["src"], srcDestArray["dest"],currCapModel);
+			}
+			else
+			{
+				for (cd in copyTypes) {					
+					copyContactsFromParentByType(srcDestArray["src"], srcDestArray["dest"], copyTypes[cd],currCapModel);
+				}		
+			}
 			return;
 		}
-
-		if (copyTypes == null) {
-			copyContacts(srcDestArray["src"], srcDestArray["dest"]);
-		} else {
-			for (cd in copyTypes) {
-				copyContactsByType(srcDestArray["src"], srcDestArray["dest"], copyTypes[cd]);
-			}
-		}
-
-		//copy from 1st parent only (other will just overwrite)
-		if (copyDirection == FROM_PARENT) {
-			return true;
-		}
+		else if (copyDirection == TO_PARENT)
+		{
+			if (copyTypes == null)
+				syncronizeContactsWithParent(srcDestArray["dest"]);
+			else
+				syncronizeContactsWithParentByType(copyTypes,srcDestArray["dest"]);
+		}		
 	} //for all capIdsArray
 	return true;
 }
@@ -433,17 +493,19 @@ function copyAppLPLocal(capIdsArray, copyTypes, copyDirection) {
 			return;
 		}
 
-		if (controlString.equalsIgnoreCase("Pageflow")) {
-			var currCapModel = aa.env.getValue('CapModel');
-			copyLPFromParent4ACA(currCapModel, srcDestArray["src"], copyTypes);
-			return;
-		}
-
-		copyLicensedProfByType(srcDestArray["src"], srcDestArray["dest"], copyTypes);
-
-		//copy from 1st parent only (other will just overwrite)
 		if (copyDirection == FROM_PARENT) {
+			if (controlString.equalsIgnoreCase("Pageflow")) {
+				var currCapModel = aa.env.getValue('CapModel');
+				copyLPFromParent4ACA(currCapModel, srcDestArray["src"], copyTypes);
+				return;
+			}
+
+			copyLicensedProfByType(srcDestArray["src"], srcDestArray["dest"], copyTypes);
 			return true;
+		}
+		else if (copyDirection == TO_PARENT)
+		{
+			syncronizeLPWithParent(srcDestArray["dest"], copyTypes);
 		}
 	} //for all capIdsArray
 	return true;
@@ -456,28 +518,28 @@ function copyAppLPLocal(capIdsArray, copyTypes, copyDirection) {
  * @returns {Boolean} true if success, false otherwise
  */
 function copyAssetsLocal(capIdsArray, copyTypes, copyDirection) {
-	//This Portlet is not supported in Pageflow
-	if (controlString.equalsIgnoreCase("Pageflow")) {
-		return;
-	}
+	
 	for (ca in capIdsArray) {
 
 		var srcDestArray = getCopySrcDest(capId, capIdsArray[ca], copyDirection);
 
 		if (!srcDestArray) {
-			logDebug("**INFO: copyAssetsLocal(): Invalid usageType: " + copyDirection);
+			logDebug("**INFO: copyContactsLocal(): Invalid usageType: " + copyDirection);
 			return false;
 		}
 
 		copyTypes = getCopyTypesArray(copyTypes);
-		//handle ("" means don't copy)
 		if (copyTypes != null && copyTypes.length == 0) {
 			return;
 		}
-		copyAssetsByType(srcDestArray["src"], srcDestArray["dest"], copyTypes);
-		//copy from 1st parent only (other will just overwrite)
+
 		if (copyDirection == FROM_PARENT) {
-			return true;
+			var currCapModel = aa.env.getValue('CapModel');
+
+			copyAssetsFromParent(srcDestArray["src"], srcDestArray["dest"], copyTypes);
+			return;
+		} else if (copyDirection == TO_PARENT) {
+			syncronizeAssetsWithParent(srcDestArray["dest"],copyTypes);
 		}
 	} //for all capIdsArray
 	return true;
@@ -1078,56 +1140,6 @@ function copyLPFromParent4ACA(currentRecordCapModel, parentCapId, typesArray) {
 	}
 }
 
-function copyContactFromParent4ACA(currentRecordCapModel, parentCapId, typesArray) {
-	contactsGroup = currentRecordCapModel.getContactsGroup();
-	if (contactsGroup.size() > 0) {
-		return;
-	}
-	var t = aa.people.getCapContactByCapID(parentCapId);
-	if (t.getSuccess()) {
-		capPeopleArr = t.getOutput();
-		for (cp in capPeopleArr) {
-			if (typesArray != null && !arrayContainsValue(typesArray, capPeopleArr[cp].getCapContactModel().getPeople().getContactType())) {
-				continue;
-			}
-			capPeopleArr[cp].getCapContactModel().setCapID(null);
-			//contactsGroup.add(capPeopleArr[cp].getCapContactModel());
-			contactAddFromUser4ACA(currentRecordCapModel, capPeopleArr[cp].getCapContactModel());
-		} //for all contacts from parent
-	} //get paretn contacts success
-}
-
-function contactAddFromUser4ACA(capModel, contactModel) {
-	var theContact = contactModel.getPeople();
-	var capContactModel = aa.proxyInvoker.newInstance("com.accela.aa.aamain.people.CapContactModel").getOutput();
-	capContactModel.setContactType(theContact.getContactType());
-	capContactModel.setFirstName(theContact.getFirstName());
-	capContactModel.setMiddleName(theContact.getMiddleName());
-	capContactModel.setLastName(theContact.getLastName());
-	capContactModel.setFullName(theContact.getFullName());
-	capContactModel.setEmail(theContact.getEmail());
-	capContactModel.setPhone2(theContact.getPhone2());
-	capContactModel.setPhone1CountryCode(theContact.getPhone1CountryCode());
-	capContactModel.setPhone2CountryCode(theContact.getPhone2CountryCode());
-	capContactModel.setPhone3CountryCode(theContact.getPhone3CountryCode());
-	capContactModel.setCompactAddress(theContact.getCompactAddress());
-	capContactModel.sePreferredChannele(theContact.getPreferredChannel()); // Preferred Channel is used for 'Particiapnt Type' in ePermits. Yes, the function itself is misspelled, just use it like this.
-	capContactModel.setPeople(theContact);
-	var birthDate = theContact.getBirthDate();
-	if (birthDate != null && birthDate != "") {
-		capContactModel.setBirthDate(aa.util.parseDate(birthDate));
-	}
-	var peopleAttributes = aa.people.getPeopleAttributeByPeople(theContact.getContactSeqNumber(), theContact.getContactType()).getOutput();
-	if (peopleAttributes) {
-		var newPeopleAttributes = aa.util.newArrayList();
-		for ( var i in peopleAttributes) {
-			newPeopleAttributes.add(peopleAttributes[i].getPeopleAttributeModel())
-		}
-		capContactModel.getPeople().setAttributes(newPeopleAttributes)
-	}
-	capModel.getContactsGroup().add(capContactModel);
-
-}
 
 function copyASIFromParent4ACA(currentRecordCapModel, parentCapId, typesArray) {
 	var asiGroups = currentRecordCapModel.getAppSpecificInfoGroups();
@@ -1306,6 +1318,559 @@ function deleteExistingAPO(deleteFromCapId, keepExisting, whichAPO) {
 			owners = owners.getOutput();
 			for (o in owners) {
 				aa.owner.removeCapOwnerModel(owners[o]);
+			}
+		}
+	}
+}
+
+function copyContactFromParent(pFromCapId, pToCapId,capModel) {
+	//Copies all contacts from pFromCapId to pToCapId
+	//07SSP-00037/SP5017
+	//
+	if (pToCapId == null)
+		var vToCapId = capId;
+	else
+		var vToCapId = pToCapId;
+
+	var capContactResult = aa.people.getCapContactByCapID(pFromCapId);
+	var copied = 0;
+	if (capContactResult.getSuccess()) {
+		var Contacts = capContactResult.getOutput();
+		for (yy in Contacts) {			
+		    var xNewContact = Contacts[yy].getCapContactModel();            
+			var peopleModel = xNewContact.getPeople();
+			var newContact = aa.proxyInvoker.newInstance("com.accela.aa.aamain.people.CapContactModel").getOutput();
+						
+			try
+			{
+			    newContact.setRefContactNumber(peopleModel.getContactSeqNumber());
+			    peopleModel.setServiceProviderCode(aa.getServiceProviderCode());
+			    peopleModel.setContactSeqNumber(newContact.getPeople().getContactSeqNumber());
+			    peopleModel.setAuditID(aa.getAuditID());
+			    newContact.setPeople(peopleModel);
+			}
+			catch(ex)
+			{
+   			  logDebug("**ERROR: Exception while update contact people model for " + xNewContact + ". Error: " + ex);
+			}
+			// Retrieve contact address list and set to related contact
+			var contactAddressrs = aa.address.getContactAddressListByCapContact(newContact);
+			if (contactAddressrs.getSuccess()) {
+				var contactAddressModelArr = convertContactAddressModelArr(contactAddressrs.getOutput());
+				newContact.getPeople().setContactAddressList(contactAddressModelArr);
+			}
+			newContact.setCapID(vToCapId);
+
+			// Create cap contact, contact address and contact template						
+            if(isPublicUser && !isRenewal && (!controlString.equalsIgnoreCase("ApplicationSubmitAfter") && !isRenewal))
+				capModel.getContactsGroup().add(newContact);
+			else
+				aa.people.createCapContactWithAttribute(newContact);
+
+			copied++;
+			logDebug("Copied contact from " + pFromCapId.getCustomID() + " to " + vToCapId.getCustomID());
+		}
+	} else {
+		logMessage("**ERROR: Failed to get contacts: " + capContactResult.getErrorMessage());
+		return false;
+	}
+	return copied;
+}
+
+function copyContactsFromParentByType(pFromCapId, pToCapId, pContactType,capModel)
+{
+//	Copies all contacts from pFromCapId to pToCapId
+//	where type == pContactType
+	if (pToCapId==null)
+		var vToCapId = capId;
+	else
+		var vToCapId = pToCapId;
+
+	var capContactResult = aa.people.getCapContactByCapID(pFromCapId);
+	var copied = 0;
+
+	if (capContactResult.getSuccess())
+	{
+		var Contacts = capContactResult.getOutput();
+		for (yy in Contacts)
+		{
+
+			if(Contacts[yy].getCapContactModel().getContactType() == pContactType)
+			{
+				//Rami change: fix copy contact
+			    var xNewContact = Contacts[yy].getCapContactModel();            
+				var peopleModel = xNewContact.getPeople();
+				var newContact = aa.proxyInvoker.newInstance("com.accela.aa.aamain.people.CapContactModel").getOutput();
+				newContact.setRefContactNumber(peopleModel.getContactSeqNumber());
+			    peopleModel.setServiceProviderCode(aa.getServiceProviderCode());
+			    peopleModel.setContactSeqNumber(newContact.getPeople().getContactSeqNumber());
+			    peopleModel.setAuditID(aa.getAuditID());
+			    newContact.setPeople(peopleModel);
+			    var contactAddressrs = aa.address.getContactAddressListByCapContact(newContact);
+				if (contactAddressrs.getSuccess()) {
+					var contactAddressModelArr = convertContactAddressModelArr(contactAddressrs.getOutput());
+					newContact.getPeople().setContactAddressList(contactAddressModelArr);
+				}
+					
+				newContact.setCapID(vToCapId);	
+				if(isPublicUser && !isRenewal)
+					capModel.getContactsGroup().add(newContact);
+				else
+					aa.people.createCapContact(newContact);
+
+				copied++;
+				logDebug("Copied contact from "+pFromCapId.getCustomID()+" to "+vToCapId.getCustomID());
+			}
+
+		}
+	}
+	else
+	{
+		logDebug("**ERROR: Failed to get contacts: " + capContactResult.getErrorMessage()); 
+		return false; 
+	}
+	return copied;
+}
+
+function syncronizeContactsWithParent(parentCapId)
+{	
+	var capContacts = null;
+	var parentCapContacts = null;		
+	var capContactResult = aa.people.getCapContactByCapID(capId);
+	var parentCapContactResult = aa.people.getCapContactByCapID(parentCapId);
+	if (!capContactResult.getSuccess() || !parentCapContactResult.getSuccess()) {
+		logDebug("**WARN getCapContactByCapID error " + capContactResult.getErrorMessage());
+		return false;
+	}
+	capContacts = capContactResult.getOutput();
+	parentCapContacts = parentCapContactResult.getOutput();
+	if (!capContacts || capContacts == null || capContacts == "" || capContacts.length == 0) {
+		return false;
+	}
+	if (!parentCapContacts || parentCapContacts == null || parentCapContacts == "" || parentCapContacts.length == 0) {
+		return false;
+	}
+
+	var capContact;
+	var parentCapContact;
+	var vCCSM;
+	var vParentCCSM;
+	var vContactObj;
+	var vParentContactObj;
+	var deleteContactFromParent;
+	var addContactToParent;
+
+	for(xx in  parentCapContacts)//Synchronize contacts with parent record and delete from parent the deleted contact(s) at the amendment record
+	{						
+		parentCapContact = parentCapContacts[xx].getCapContactModel();
+
+		deleteContactFromParent = true;
+		for (yy in capContacts)
+		{			
+			try//This try to skip delete the contact of parent when an exception happened while getting info
+			{
+				capContact = capContacts[yy].getCapContactModel();
+				if(capContact.getRefContactNumber() == parentCapContact.getRefContactNumber())
+				{						
+					deleteContactFromParent = false;
+					vCCSM = new com.accela.aa.emse.dom.CapContactScriptModel(capContact,aa.getServiceProviderCode(),
+							aa.getAuditID());
+					vContactObj = new contactObj(vCCSM);
+					vContactObj.syncCapContactToReference();
+				}
+			}
+			catch (err)
+			{
+				deleteContactFromParent = false;
+			}				
+		}
+		if(deleteContactFromParent)
+		{				
+			vParentCCSM = new com.accela.aa.emse.dom.CapContactScriptModel(parentCapContact,aa.getServiceProviderCode(),
+					aa.getAuditID());
+			vParentContactObj = new contactObj(vParentCCSM);
+			vParentContactObj.remove();
+		}						
+	}
+	for (yy in capContacts)//Add to parent record the contact(s) added on by amendment record
+	{					
+		capContact = capContacts[yy].getCapContactModel();
+
+		addContactToParent = true;
+		for(xx in  parentCapContacts)
+		{			
+			try//This try to skip delete the contact of parent when an exception happened while getting info
+			{
+				parentCapContact = parentCapContacts[xx].getCapContactModel();
+				if(capContact.getRefContactNumber() == parentCapContact.getRefContactNumber())
+				{						
+					addContactToParent = false;						
+				}
+			}
+			catch (err)
+			{
+				addContactToParent = false;
+			}				
+		}
+		if(addContactToParent)
+		{								
+			var newContact = capContact;
+			// Retrieve contact address list and set to related contact
+			var contactAddressrs = aa.address.getContactAddressListByCapContact(newContact);
+			if (contactAddressrs.getSuccess()) {
+				var contactAddressModelArr = convertContactAddressModelArr(contactAddressrs.getOutput());
+				newContact.getPeople().setContactAddressList(contactAddressModelArr);
+			}				
+			newContact.setCapID(parentCapId);	
+			aa.people.createCapContact(newContact);
+		}						
+	}
+
+}
+
+function syncronizeContactsWithParentByType(copyTypes,parentCapId)
+{	
+	var capContacts = null;
+	var parentCapContacts = null;		
+	var capContactResult = aa.people.getCapContactByCapID(capId);
+	var parentCapContactResult = aa.people.getCapContactByCapID(parentCapId);
+	if (!capContactResult.getSuccess() || !parentCapContactResult.getSuccess()) {
+		logDebug("**WARN getCapContactByCapID error " + capContactResult.getErrorMessage());
+		return false;
+	}
+	capContacts = capContactResult.getOutput();
+	parentCapContacts = parentCapContactResult.getOutput();
+	if (!capContacts || capContacts == null || capContacts == "" || capContacts.length == 0) {
+		return false;
+	}
+	if (!parentCapContacts || parentCapContacts == null || parentCapContacts == "" || parentCapContacts.length == 0) {
+		return false;
+	}
+
+	var capContact;
+	var parentCapContact;
+	var vCCSM;
+	var vParentCCSM;
+	var vContactObj;
+	var vParentContactObj;
+	var deleteContactFromParent;
+	var addContactToParent;
+
+	for (vContactType in copyTypes) {		
+		for(xx in  parentCapContacts)//Synchronize contacts with parent record and delete from parent the deleted contact(s) at the amendment record
+		{						
+			parentCapContact = parentCapContacts[xx].getCapContactModel();
+
+			deleteContactFromParent = true;
+			for (yy in capContacts)
+			{			
+				try//This try to skip delete the contact of parent when an exception happened while getting info
+				{
+					capContact = capContacts[yy].getCapContactModel();
+					if(capContact.getContactType() == vContactType)
+					{
+						if(capContact.getRefContactNumber() == parentCapContact.getRefContactNumber())
+						{						
+							deleteContactFromParent = false;
+							vCCSM = new com.accela.aa.emse.dom.CapContactScriptModel(capContact,aa.getServiceProviderCode(),
+									aa.getAuditID());
+							vContactObj = new contactObj(vCCSM);
+							vContactObj.syncCapContactToReference();
+						}
+					}
+					else
+					{
+						deleteContactFromParent = false;
+					}
+				}
+				catch (err)
+				{
+					deleteContactFromParent = false;
+				}				
+			}
+			if(deleteContactFromParent)
+			{				
+				vParentCCSM = new com.accela.aa.emse.dom.CapContactScriptModel(parentCapContact,aa.getServiceProviderCode(),
+						aa.getAuditID());
+				vParentContactObj = new contactObj(vParentCCSM);
+				vParentContactObj.remove();
+			}	
+		}
+		for (yy in capContacts)//Add to parent record the contact(s) added on by amendment record
+		{						
+			capContact = capContacts[yy].getCapContactModel();
+			if(capContact.getContactType() == vContactType)
+			{
+				addContactToParent = true;
+				for(xx in  parentCapContacts)
+				{			
+					try//This try to skip delete the contact of parent when an exception happened while getting info
+					{
+						parentCapContact = parentCapContacts[xx].getCapContactModel();
+						if(capContact.getRefContactNumber() == parentCapContact.getRefContactNumber())
+						{						
+							addContactToParent = false;						
+						}
+					}
+					catch (err)
+					{
+						addContactToParent = false;
+					}				
+				}
+				if(addContactToParent)
+				{								
+					var newContact = capContact;
+					newContact.setCapID(parentCapId);	
+					aa.people.createCapContact(newContact);						   
+				}	
+			}
+		}
+	}	
+}
+
+function updateFromRecordLicensedProf(vParentLPObject,vLPObject,vParentCapId)
+{
+	var retVal = false;
+        var newLP =  vLPObject;  
+	newLP.setCapID(vParentCapId);
+	
+	aa.licenseProfessional.editLicensedProfessional(newLP);		
+	return true;    			
+}
+
+function syncronizeLPWithParent(parentCapId,typesArray)
+{			
+	var capLPs = null;
+	var parentCapLPs = null;		
+	var capLPResult = aa.licenseProfessional.getLicenseProf(capId);
+	var parentCapLPResult = aa.licenseProfessional.getLicenseProf(parentCapId);
+	if (!capLPResult.getSuccess() || !parentCapLPResult.getSuccess()) {
+		logDebug("**WARN getLicenseProf error " + capLPResult.getErrorMessage());
+		return false;
+	}
+	capLPs = capLPResult.getOutput();
+	parentCapLPs = parentCapLPResult.getOutput();
+	if (!capLPs || capLPs == null || capLPs == "" || capLPs.length == 0) {
+		return false;
+	}
+	if (!parentCapLPs || parentCapLPs == null || parentCapLPs == "" || parentCapLPs.length == 0) {
+		return false;
+	}
+
+	var capLP;
+	var parentCapLP;			
+	var deleteLPFromParent;
+	var addLPToParent;
+    		
+	for(xx in  parentCapLPs)//Synchronize LPs with parent record and delete from parent the deleted LP(s) at the amendment record
+	{						
+		parentCapLP = parentCapLPs[xx];
+
+		deleteLPFromParent = true;
+		for (yy in capLPs)
+		{			
+			try//This try to skip delete the LP of parent when an exception happened while getting info
+			{
+				capLP = capLPs[yy];							
+				if (capLP.getLicenseNbr() + "" == parentCapLP.getLicenseNbr() + ""
+						&& capLP.getLicenseType() + "" == parentCapLP.getLicenseType() + "")					
+				{						
+					deleteLPFromParent = false;
+					//Update Parent LP
+					updateFromRecordLicensedProf(parentCapLP,capLP,parentCapId);
+				}
+			}
+			catch (err)
+			{
+				deleteLPFromParent = false;
+			}				
+		}
+		if(deleteLPFromParent)
+		{				
+			aa.licenseProfessional.removeLicensedProfessional(parentCapLP);
+		}						
+	}
+	for (yy in capLPs)//Add to parent record the LP(s) added on by amendment record
+	{					
+		capLP = capLPs[yy];
+
+		addLPToParent = true;
+		for(xx in  parentCapLPs)
+		{						
+			try//This try to skip delete the LP of parent when an exception happened while getting info
+			{
+				parentCapLP = parentCapLPs[xx];
+				if (capLP.getLicenseNbr() + "" == parentCapLP.getLicenseNbr() + ""
+						&& capLP.getLicenseType() + "" == parentCapLP.getLicenseType() + "")					
+				{						
+					addLPToParent = false;					
+				}
+			}
+			catch (err)
+			{
+				addLPToParent = false;
+			}				
+		}
+		if(addLPToParent)
+		{							
+			var isByType = typesArray != null && typesArray.length > 0;
+			var newLP = capLP;
+			if (isByType){
+				if(!arrayContainsValue(typesArray, newLP.getLicenseType())) {									
+					newLP.setCapID(parentCapId);
+					aa.licenseProfessional.createLicensedProfessional(newLP);	
+				}}
+			else
+			{
+				newLP.setCapID(parentCapId);
+				aa.licenseProfessional.createLicensedProfessional(newLP);	
+			}
+		}						
+	}
+}
+
+function copyAssetsFromParent(capIdFrom, capIdTo, typesArray) {
+	copyAssetsByType
+	var isByType = typesArray != null && typesArray.length > 0;		
+	var a = aa.asset.getRecordAssetsByRecordId(capIdFrom);//WorkOrderAssetModel
+
+	if (!a.getSuccess()) {
+
+		logDebug("**INFO: Failed to get src Assets: " + r.getErrorMessage());
+		return false;
+	}
+	var assets = a.getOutput();
+
+	for (as in assets) {
+
+		var seqNum = assets[as].getAssetPK().getG1AssetSequenceNumber();
+		var assetData = aa.asset.getAssetData(seqNum);
+		if (assetData.getSuccess()) {
+			assetData = assetData.getOutput(); //array of AssetScriptModel
+		} else {
+			continue;
+		}
+		var assetMasterModel = assetData.getAssetMasterModel();//AssetMasterModel		
+		if (isByType && !arrayContainsValue(typesArray, assetMasterModel.getG1AssetType())) {
+			continue;
+		}
+		assets[as].setCapID(capIdTo);		
+		aa.asset.createWorkOrderAsset(assets[as]);
+	}//for all assets
+	return true;
+}
+
+
+function copyAssetsFromParent(capIdFrom, capIdTo, typesArray) {
+	var isByType = typesArray != null && typesArray.length > 0;
+	var a = aa.asset.getRecordAssetsByRecordId(capIdFrom);//WorkOrderAssetModel
+
+	if (!a.getSuccess()) {
+
+		logDebug("**INFO: Failed to get src Assets: " + r.getErrorMessage());
+		return false;
+	}
+	var assets = a.getOutput();
+
+	for (as in assets) {
+
+		var seqNum = assets[as].getAssetPK().getG1AssetSequenceNumber();
+		var assetData = aa.asset.getAssetData(seqNum);
+		if (assetData.getSuccess()) {
+			assetData = assetData.getOutput(); //array of AssetScriptModel
+		} else {
+			continue;
+		}
+		var assetMasterModel = assetData.getAssetMasterModel();//AssetMasterModel		
+		if (isByType && !arrayContainsValue(typesArray, assetMasterModel.getG1AssetType())) {
+			continue;
+		}
+		assets[as].setCapID(capIdTo);
+		aa.asset.createWorkOrderAsset(assets[as]);
+	}//for all assets
+	return true;
+}
+
+function syncronizeAssetsWithParent(parentCapId,typesArray) {
+	var capAssets = null;
+	var parentCapAssets = null;
+	var capAssetResult = aa.asset.getRecordAssetsByRecordId(capId);
+	var parentCapAssetResult = aa.asset.getRecordAssetsByRecordId(parentCapId);
+	if (!capAssetResult.getSuccess() || !parentCapAssetResult.getSuccess()) {
+		logDebug("**WARN getRecordAssetsByRecordId error " + capAssetResult.getErrorMessage());
+		return false;
+	}
+	capAssets = capAssetResult.getOutput();
+	parentCapAssets = parentCapAssetResult.getOutput();
+	if (!capAssets || capAssets == null || capAssets == "" || capAssets.length == 0) {
+		return false;
+	}
+	if (!parentCapAssets || parentCapAssets == null || parentCapAssets == "" || parentCapAssets.length == 0) {
+		return false;
+	}
+
+	var capAsset;
+	var parentCapAsset;
+	var deleteAssetFromParent;
+	var addAssetToParent;
+
+	for (xx in parentCapAssets)//Synchronize Assets with parent record and delete from parent the deleted Asset(s) at the child record
+	{
+		parentCapAsset = parentCapAssets[xx];
+
+		deleteAssetFromParent = true;
+		for (yy in capAssets) {
+			try//This try to skip delete the Asset of parent when an exception happened while getting info
+			{
+				capAsset = capAssets[yy];
+				if (capAsset.getAssetPK().getG1AssetSequenceNumber() + "" == parentCapAsset.getAssetPK().getG1AssetSequenceNumber() + "") {
+					deleteAssetFromParent = false;
+					//Update Parent Asset					
+				}
+			} catch (err) {
+				deleteAssetFromParent = false;
+			}
+		}
+		if (deleteAssetFromParent) {
+			aa.asset.removeWorkOrderAssetByPK(parentCapAsset);
+		}
+	}
+	for (yy in capAssets)//Add to parent record the Asset(s) added on by child record
+	{
+		capAsset = capAssets[yy];
+
+		addAssetToParent = true;
+		for (xx in parentCapAssets) {
+			try//This try to skip delete the Asset of parent when an exception happened while getting info
+			{
+				parentCapAsset = parentCapAssets[xx];
+				if (capAsset.getAssetPK().getG1AssetSequenceNumber() + "" == parentCapAsset.getAssetPK().getG1AssetSequenceNumber() + "") {
+					addAssetToParent = false;
+				}
+			} catch (err) {
+				addAssetToParent = false;
+			}
+		}
+		if (addAssetToParent) {
+			var seqNum = capAsset.getAssetPK().getG1AssetSequenceNumber();
+			var assetData = aa.asset.getAssetData(seqNum);
+			if (assetData.getSuccess()) {
+				assetData = assetData.getOutput(); //array of AssetScriptModel
+			} else {
+				continue;
+			}
+			var assetMasterModel = assetData.getAssetMasterModel();//AssetMasterModel		
+
+			var isByType = typesArray != null && typesArray.length > 0;
+			var newAsset = capAsset;
+			if (isByType) {
+				if (!arrayContainsValue(typesArray, assetMasterModel.getG1AssetType())) {
+					newAsset.setCapID(parentCapId);
+					aa.asset.createWorkOrderAsset(newAsset);
+				}
+			} else {
+				newAsset.setCapID(parentCapId);
+				aa.asset.createWorkOrderAsset(newAsset);
 			}
 		}
 	}

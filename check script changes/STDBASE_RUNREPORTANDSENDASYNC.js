@@ -97,19 +97,44 @@ else {waitTime = parseInt(waitTime);}
 
 var agencyReplyEmailDefault = lookup("ACA_EMAIL_TO_AND_FROM_SETTING", "RENEW_LICENSE_AUTO_ISSUANCE_MAILFROM");
 var acaURLDefault = lookup("ACA_CONFIGS", "ACA_SITE");
-acaURLDefault = acaURLDefault.substr(0, acaURLDefault.toUpperCase().indexOf("/ADMIN"));
+if(!matches(acaURLDefault,null,undefined,""))
+	acaURLDefault = acaURLDefault.substr(0, acaURLDefault.toUpperCase().indexOf("/ADMIN"));
+	else
+	acaURLDefault = null;
+
 var acaURL = acaURLDefault;
 var asyncDebugLogsEmail = lookup("EMSE_EXECUTE_OPTIONS", "ASYNC_DEBUG_LOGS_EMAIL");
 
-if(!matches(asyncDebugLogsEmail,null,undefined,"") && asyncDebugLogsEmail.indexOf("@") > 0){
-    debugEmailTo = asyncDebugLogsEmail;
-    testMode = true;
-    showDebug = true;
-    showMessage = true;
+if(!matches(asyncDebugLogsEmail,null,undefined,"")){
+	if(asyncDebugLogsEmail.indexOf("@") > 0)
+	{
+	    debugEmailTo = asyncDebugLogsEmail;
+	    testMode = true;
+	    showDebug = true;
+	    showMessage = true;
+	}
+	else
+		asyncDebug("WARNING: asyncDebugLogsEmail has an invalid format");
 }
+else
+	asyncDebug("WARNING: Failed to get a value for asyncDebugLogsEmail");
 
 if(matches(systemMailFrom,null,"")){
-	systemMailFrom = agencyReplyEmailDefault;
+	if(!matches(agencyReplyEmailDefault,null,undefined,""))
+	{
+		if(agencyReplyEmailDefault.indexOf("@") > 0)
+		{
+			systemMailFrom = agencyReplyEmailDefault;
+		}
+		else
+		{
+			asyncDebug("WARNING: Failed to set systemMailFrom value because agencyReplyEmailDefault has an invalid format");
+		}
+	}
+	else
+	{
+		asyncDebug("WARNING: Failed to get a value for systemMailFrom because agencyReplyEmailDefault has no value");
+	}
 }
 
 
@@ -210,14 +235,28 @@ try {
 		}
 
 		if(!isEmptyOrNull(debugEmailTo)) {
-			aa.sendMail(systemMailFrom, debugEmailTo, "", "Post Debug Information in Sending Report Script", debug);
+			if(!matches(systemMailFrom,null,""))
+			{
+				if(systemMailFrom.indexOf("@") > 0)
+					aa.sendMail(systemMailFrom, debugEmailTo, "", "Post Debug Information in Sending Report Script", debug);
+				else
+					asyncDebug("WARNING: Failed to send debug's email because systemMailFrom has invalid format");
+			}
+			else
+			{
+				asyncDebug("WARNING: Failed to send debug's email because systemMailFrom has no value");
+			}
 		}
 	}
 
 } catch (err) {
 	asyncDebug("**ERROR: Exception while verification the rules for " + scriptSuffix + ". Error: " + err);
 	asyncDebug("(RUNREPORTANDSENDASYNC) A JavaScript Error occured: " + err.message + " at line " + err.lineNumber + " stack: "+ err.stack);
-	aa.sendMail(systemMailFrom, debugEmailTo, "", "EXCEPTION: Debug Information in Sending Report Script", debug);
+	if(!matches(systemMailFrom,null,"") && !matches(debugEmailTo,null,"") 
+			&& (systemMailFrom.indexOf("@") > 0) && (debugEmailTo.indexOf("@") > 0))
+		aa.sendMail(systemMailFrom, debugEmailTo, "", "EXCEPTION: Debug Information in Sending Report Script", debug);
+	else
+		asyncDebug("WARNING: Failed to send debug's email, Check systemMailFrom and debugEmailTo parameters");
 }
 
 
@@ -517,7 +556,23 @@ function sendContactEmailsAsync(itemCapId, recordSettings, parameters) {
 	}
 
 	if (isEmptyOrNull(rFromEmail)) {
-		rFromEmail = agencyReplyEmailDefault;
+		if(!matches(agencyReplyEmailDefault,null,undefined,""))
+		{
+			if(agencyReplyEmailDefault.indexOf("@") > 0)
+			{
+				rFromEmail = agencyReplyEmailDefault;
+			}
+			else
+			{
+				asyncDebug("WARNING: Failed to set rFromEmail value because agencyReplyEmailDefault has an invalid format");
+				return false;
+			}
+		}
+		else
+		{
+			asyncDebug("WARNING: Failed to get a value for rFromEmail because agencyReplyEmailDefault has no value");
+			return false;
+		}
 	}
 
 	if (typeof itemCapId == 'undefined') {
@@ -682,7 +737,7 @@ function sendContactEmailsAsync(itemCapId, recordSettings, parameters) {
 					reportFiles = new Array();
 					var repTypeArray = new Array();
 
-					if (typeof(rNotificationReport).length != "undefined" && rNotificationReport.length > 0) {
+					if (Array.isArray(rNotificationReport)) {
 						// Variable is an array
 						repTypeArray = rNotificationReport;
 					} else {
@@ -778,7 +833,11 @@ function sendContactEmailsAsync(itemCapId, recordSettings, parameters) {
 		} catch (err) {
 			asyncDebug("Exception generating emails : " + err);
 			asyncDebug("(RUNREPORTANDSENDASYNC) A JavaScript Error occured: " + err.message + " at line " + err.lineNumber + " stack: "+ err.stack);
-			aa.sendMail(systemMailFrom, debugEmailTo, "", "EXCEPTION: Debug Information in Sending Report Script", debug);
+			if(!matches(systemMailFrom,null,"") && !matches(debugEmailTo,null,"") 
+					&& (systemMailFrom.indexOf("@") > 0) && (debugEmailTo.indexOf("@") > 0))
+				aa.sendMail(systemMailFrom, debugEmailTo, "", "EXCEPTION: Debug Information in Sending Report Script", debug);
+			else
+				asyncDebug("WARNING: Failed to send debug's email, Check systemMailFrom and debugEmailTo parameters");
 		}
 	}
 }

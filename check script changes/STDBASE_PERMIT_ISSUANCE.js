@@ -148,7 +148,7 @@ function updatePermitComponents(rules) {
 		if (theSetName.charAt(theSetName.length - 1) != '_')
 			theSetName = theSetName + '_';
 
-		theSetName = theSetName + aa.util.formatDate(new Date(), "MMddYYYY");
+		theSetName = theSetName + aa.util.formatDate(new Date(aa.util.now()), "MMddYYYY");
 		var theSet = aa.set.getSetByPK(theSetName);
 		if (!theSet.getSuccess() && theSet.getOutput() == null && theSet.getErrorMessage() == " Set don't exist. ") {
 			//set not found, create it

@@ -45,6 +45,7 @@ Description : JSON Example :
 			"includeBusinessName" : false,
 			"includeDBATradeName" : false
 		  }
+		  "updateExpirationStatus": "Inactive"
         },
         "postScript": ""
       }
@@ -114,6 +115,7 @@ try {
  * @param rules json rules .
  */
 function UpdateFields(rules) {
+	
 	var daysOut = rules.daysOut;
 	var valueSource = rules.valueSource;
 	var customListToUpdate = rules.customListToUpdate;
@@ -121,6 +123,25 @@ function UpdateFields(rules) {
 	var sourceName = rules.sourceName;
 	var updateAppName = rules.updateAppName;
 	var newValue = null;
+	
+
+	var expirationStatus =rules.updateExpirationStatus ;
+	if (!isEmptyOrNull(expirationStatus))
+		{
+		var rB1ExpResult = aa.expiration.getLicensesByCapID(capId).getOutput();
+		//rB1ExpResult.setExpStatus("Inactive") ; 
+		rB1ExpResult.setExpStatus(expirationStatus) ; 
+		rB1ExpResult.setExpDate(rB1ExpResult.getExpDate()) ; 
+		var editExperationResult = aa.expiration.editB1Expiration(rB1ExpResult.getB1Expiration());
+		if (editExperationResult.getSuccess())
+		{
+			logDebug("Experation Status canged to : " +  expirationStatus);
+		}
+		 else
+			logDebug("**ERROR","**ERROR: Cannot Edit Expiration Status: "+ editExperationResult.getErrorMessage()); 
+
+		}
+	
 	//prepare the new value
 	if (!isEmptyOrNull(daysOut)) {
 		if (isNaN(daysOut)) {
@@ -370,6 +391,7 @@ function getNewValue(rules) {
 			if (result != null) {
 				return result.getDescription();
 			} else {
+				logDebug("WARNING: Failed to get a value's description for: " + stdValues);
 				return "";
 			}
 		}

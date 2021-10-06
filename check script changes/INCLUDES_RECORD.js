@@ -1336,6 +1336,27 @@ Record.prototype.deleteInspection = function (inspectionModel) {
 };
 
 /**
+ * Cancel All Inspections.
+ * 
+ * @param {*} Required. InspectionModel.
+ * @memberof Record
+ */
+ 
+ Record.prototype.cancelAllInspection = function () {
+	
+	 var inspecs = aa.inspection.getInspections(this.capId).getOutput();
+	 for (i in inspecs) {
+	      var cancelResult = aa.inspection.cancelInspection(capId ,inspecs[i].getIdNumber() ) 
+	      if (cancelResult.getSuccess())
+	      {
+	    	  logDebug("Cancelling inspection: " + inspecs[i].getInspectionType());
+	      }
+	       else 
+			   logDebug("**ERROR","**ERROR: Cannot cancel inspection: "+inspecs[i].getInspectionType()+", "+cancelResult.getErrorMessage());       
+	 }
+};
+
+/**
  * [[DESCRIPTION]]
  * @param {*} [[OPTIONAL/REQUIRED]]. [[DESCRIPTION]].
  * @memberof Record

@@ -139,7 +139,7 @@ function meetingAutomation(capId, rules) {
 		cal.getTime();
 		var jEndDate = new java.util.Date(endDatetime);
 		jEndDate = cal.getTime();
-		recDate = new java.util.Date();
+		recDate = new java.util.Date(aa.util.now());
 		jsReqDate = convertDate(startDatetime);
 
 	}

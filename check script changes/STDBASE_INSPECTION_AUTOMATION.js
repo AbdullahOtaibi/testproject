@@ -54,7 +54,8 @@ Author: Yazan Barghouth
           "removeCondition": "",
           "removeConditionType": "",
           "expirationTypeUpdate":"Expiration Code",
-          "expirationDaysToAdvance":"30"
+          "expirationDaysToAdvance":"30",
+          "cancelAllInspections" : true ; 
         },
         "preScript": "",
         "postScript": ""
@@ -75,7 +76,6 @@ Notes:
 	property 'caseFailureStatus' is supported with operators
  * 
  */
-
 //try to get CONFIGURABLE_SCRIPTS_COMMON from Non-Master, if not found, get from Master
 var configurableCommonContent = getScriptText("CONFIGURABLE_SCRIPTS_COMMON");
 if (configurableCommonContent && configurableCommonContent != null && configurableCommonContent != "") {
@@ -115,13 +115,34 @@ if (isConfigurableScript(settingsArray, scriptSuffix)) {
 }// isConfigurableScript()
 
 function inspectionAutomation(rules) {
+	
+
+	var cancelAllInspections = rules.action.cancelAllInspections ;
+	if(!isEmptyOrNull(cancelAllInspections) )
+	{
+	 if(cancelAllInspections)
+	 {
+		 var inspecs = aa.inspection.getInspections(capId).getOutput();
+		 for (i in inspecs) {
+		      var cancelResult = aa.inspection.cancelInspection(capId ,inspecs[i].getIdNumber() ) 
+		      if (cancelResult.getSuccess())
+		      {
+		    	  logDebug("Cancelling inspection: " + inspecs[i].getInspectionType());
+		      }
+		       else
+		    	   logDebug("**ERROR","**ERROR: Cannot cancel inspection: "+inspecs[i].getInspectionType()+", "+cancelResult.getErrorMessage());    
+		 }
+	 }
+	}
+
+	
 	if (!isEmptyOrNull(rules.action.costRangeType) && !isEmptyOrNull(rules.action.costFeeSchedule) && !isEmptyOrNull(rules.action.costFeeName)
 			&& !isEmptyOrNull(rules.action.costFeeType)) {
 		var costRangeDays = calculateUnifiedRange(rules.action.costRangeType, rules.action.costRange);
 		var totalInspecs = 0;
 		var inspecs = aa.inspection.getInspections(capId).getOutput();
 
-		var now = new Date();
+		var now = new Date(aa.util.now());
 		for (i in inspecs) {
 			if (inspecs[i].getInspectionDate() == null || inspecs[i].getInspectionDate() == "") {
 				continue;
@@ -215,7 +236,7 @@ function inspectionAutomation(rules) {
 	}
 
 	if (!isEmptyOrNull(rules.action.expirationTypeUpdate) && !isEmptyOrNull(rules.action.expirationDaysToAdvance)) {
-		var newExpDate = dateAdd(new Date(), parseInt(rules.action.expirationDaysToAdvance));
+		var newExpDate = dateAdd(new Date(aa.date.getCurrentDate()), parseInt(rules.action.expirationDaysToAdvance));
 
 		if (rules.action.expirationTypeUpdate.equalsIgnoreCase("Expiration Code")) {
 			var rB1ExpResult = aa.expiration.getLicensesByCapID(capId).getOutput();
@@ -314,7 +335,7 @@ function schedInspection(inspecType, sameInspector, rangeType, rangeValue, inspe
 		}
 	}
 
-	var now = new Date();
+	var now = new Date(aa.util.now());
 	var inspRangeDays = calculateUnifiedRange(rangeType, rangeValue);
 
 	var newInspComments = null;

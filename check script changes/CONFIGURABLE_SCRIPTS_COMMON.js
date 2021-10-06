@@ -2679,7 +2679,7 @@ function contactObjLocal(ccsm) {
 			xRefContactEntity.setEntityType("PROFESSIONAL");
 			//xRefContactEntity.setEntityID1(parseInt(refLicProfSeq));
 			var auditModel = xRefContactEntity.getAuditModel();
-			auditModel.setAuditDate(new Date());
+			auditModel.setAuditDate(new Date(aa.date.getCurrentDate()));
 			auditModel.setAuditID(currentUserID);
 			auditModel.setAuditStatus("A")
 			xRefContactEntity.setAuditModel(auditModel);
@@ -2726,7 +2726,7 @@ function contactObjLocal(ccsm) {
 			xRefContactEntity.setEntityType("PROFESSIONAL");
 			xRefContactEntity.setEntityID1(parseInt(refLicProfSeq));
 			var auditModel = xRefContactEntity.getAuditModel();
-			auditModel.setAuditDate(new Date());
+			auditModel.setAuditDate(new Date(aa.date.getCurrentDate()));
 			auditModel.setAuditID(currentUserID);
 			auditModel.setAuditStatus("A")
 			xRefContactEntity.setAuditModel(auditModel);
@@ -2886,7 +2886,7 @@ function contactObjLocal(ccsm) {
 		akaModel.setFullName(fullName);
 		akaModel.setStartDate(startDate);
 		akaModel.setEndDate(endDate);
-		auditModel.setAuditDate(new Date());
+		auditModel.setAuditDate(new Date(aa.date.getCurrentDate()));
 		auditModel.setAuditStatus("A");
 		auditModel.setAuditID("ADMIN");
 		akaModel.setAuditModel(auditModel);

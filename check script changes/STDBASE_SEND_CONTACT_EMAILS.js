@@ -250,7 +250,7 @@ function runReportAndSendAsync(reportName, module, itemCapId, reportParameters, 
 	logDebug("(runReportAndSendAsync) Calling runAsyncScript for " + emailTemplate);
 }
 
-function getStandardChoiceArray(stdChoice) {
+function getStandardChoiceArray(stdChoice) {	
 	var cntItems = 0;
 	var stdChoiceArray = new Array();
 	var bizDomScriptResult = aa.bizDomain.getBizDomain(stdChoice);
@@ -270,10 +270,17 @@ function getStandardChoiceArray(stdChoice) {
 					stdChoiceArray.push(stdChoiceArrayItem);
 				}
 			}
+			else
+			{
+				logDebug("getStdChoiceArray: WARNING stdChoice not found, has no items, or disabled - " + stdChoice);
+			}
 		} else {
 			logDebug("getStdChoiceArray: WARNING stdChoice not found - " + stdChoice);
 		}
-
+	}
+	else
+	{
+		logDebug("**ERROR: getting standard choice " + stdChoice + " :" + bizDomScriptResult.getErrorMessage());
 	}
 	return stdChoiceArray;
 }
@@ -464,6 +471,7 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 
 	var debugMode = false;
 
+	var isRPT_CONFIG_StandardChoiceExist = checkStandardChoiceExistOrNot("RPT_CONFIG");
 	// validate JSON parameters using handleUndefined function
 	// handleUndefine(JSON Parameter, isRequired);
 	var rNotificationTemplate = handleUndefined(recordSettings.action.notificationTemplate, false);
@@ -542,7 +550,7 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 		eParams = aa.util.newHashtable();
 	}
 
-	if (!isEmptyOrNull(rNotificationTemplate) && !isEmptyOrNull(rNotifyContactType)) {
+	if (!isEmptyOrNull(rNotificationTemplate)) {
 		try {
 			//Get Contacts
 			emailAddrList = new Array();
@@ -619,6 +627,7 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 				//repParams.put("altID", itemCapId.getCustomID());
 				rptParams.put("p1Value", itemCapIDString); // Used for Ad Hoc Reporting
 
+				if(!isRPT_CONFIG_StandardChoiceExist)
 				getReporingInfoStandards4Notification(eParams, rReportingInfoStandards);
 
 				addParameter(eParams, "$$altID$$", itemCapIDString);
@@ -643,6 +652,19 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 						addParameter(eParams, "$$FullAddress$$", addressVar);
 					}
 				}
+				
+				var b1ExpResult = aa.expiration.getLicensesByCapID(capId );
+				if(b1ExpResult.getSuccess() &&  b1ExpResult.getOutput().getB1Expiration() != null)
+					{
+					var b1Exp = b1ExpResult.getOutput();
+					var tmpDate = b1Exp.getExpDate(); 
+					if(tmpDate)
+						{
+						var expirationDate =  tmpDate.getMonth() + "/" + tmpDate.getDayOfMonth() + "/" + tmpDate.getYear(); 
+						addParameter(eParams, "$$ExpirationDate$$", expirationDate);
+						logDebug("$$ExpirationDate$$:" + expirationDate);
+						}
+					}
 
 				var buildRecURL = "";
 				var buildPayURL = "";
@@ -721,16 +743,21 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 				}
 
 				if (!isEmptyOrNull(departmentName)) {
+					if(!isRPT_CONFIG_StandardChoiceExist)
 					getDepartmentParams4Notification(eParams, departmentName);
 				} else if (!isEmptyOrNull(departmentNameUserID)) {
 					departmentName = getDepartmentNameLocal(departmentNameUserID);
 					//logDebug("STDBASE_SEND_CONTACT_EMAILS: UserID = " + departmentNameUserID + " :: Department Name = " + departmentName);
+					if(!isRPT_CONFIG_StandardChoiceExist)
 					getDepartmentParams4Notification(eParams, departmentName);
 				} else if (isEmptyOrNull(departmentNameUserID) && !isEmptyOrNull(currentUserID)) {
 					departmentName = getDepartmentNameLocal(currentUserID);
 					//logDebug("STDBASE_SEND_CONTACT_EMAILS: CurrentUserID = " + currentUserID + " :: Department Name = " + departmentName);
+					if(!isRPT_CONFIG_StandardChoiceExist)
 					getDepartmentParams4Notification(eParams, departmentName);
 				}
+				if(isRPT_CONFIG_StandardChoiceExist)
+					getReportingConfig4Notification(eParams, departmentName);
 
 			}//contacs list or additional emails
 
@@ -767,9 +794,9 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 				}
 
 				//Send Email logic
+				var eParamsContact = aa.util.newHashtable();
+				eParamsContact = eParams;
 				for (iCont in contactObjArray) {
-					var eParamsContact = aa.util.newHashtable();
-					eParamsContact = eParams;
 					var rptParamsContact = rptParams;
 					var tContactObj = contactObjArray[iCont];
 					var rEmailTo = tContactObj.people.getEmail();
@@ -788,14 +815,6 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 
 				} // contactObjArray loop
 
-				//code block repeated, we could not create empty CapContactScriptModel object and push() it to 'contactObjArray'
-				if (!isEmptyOrNull(rAdditionalEmailsTo)) {
-					for (e in rAdditionalEmailsTo) {
-
-						sendNotificationLocal(rFromEmail, rAdditionalEmailsTo[e].trim(), "", rNotificationTemplate, eParamsContact, null, itemCapId);
-
-					}//for all extra emails
-				}//rAdditionalEmailsTo
 
 				if (!isEmptyOrNull(rNotifyLPType)) {
 					var eParamsLP = eParams;
@@ -832,6 +851,70 @@ function sendContactEmails(itemCapId, recordSettings, parameters) {
 		} catch (err) {
 			logDebug("Exception generating emails : " + err + " line " + err.lineNumber);
 		}
+
+		//code block repeated, we could not create empty CapContactScriptModel object and push() it to 'contactObjArray'
+		if (!isEmptyOrNull(rAdditionalEmailsTo)) {
+			for (e in rAdditionalEmailsTo) {
+				sendNotificationLocal(rFromEmail, rAdditionalEmailsTo[e].trim(), "", rNotificationTemplate, eParamsContact, null, itemCapId);
+			}//for all extra emails
+		}//rAdditionalEmailsTo
 	}
 }
+/**
+ * Map standard choice value of department, map the value in "RPT_CONFIG" standard choice
+ * to use the structure in "DEPARTMENT_INFORMATION" standard choice, for example if the value is 
+ * Building Department Address should be mapped to DepartmentAddress.
+ * 
+ * @param {string} standard choice value of department to be mapped
+ * @return {string} mapped department property (For example: DepartmentAddress)
+ */
+function mapDepartmentName(standardChoiceValue)
+{		
+	var resultArr = standardChoiceValue.split('Department ');
+	var result = "Department";
+	for(i = 1; i < resultArr.length; i++)
+	{
+		result = result + resultArr[i];
+	}
+	return result;
+}
 
+function checkStandardChoiceExistOrNot(stdChoice) {	
+	var bizDomScriptResult = aa.bizDomain.getBizDomain(stdChoice);
+	if (bizDomScriptResult.getSuccess()) {
+		var bizDomScriptObj = bizDomScriptResult.getOutput();
+		if (bizDomScriptObj != null && bizDomScriptObj.size() > 0) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	return false;
+}
+
+function getReportingConfig4Notification(eParamsHash, departmentName) {
+
+	var rptInfoStdArray = getStandardChoiceArray("RPT_CONFIG");
+
+	for (iSC in rptInfoStdArray) {
+		if (rptInfoStdArray[iSC]["active"] == "A") {
+			var scValue = String(rptInfoStdArray[iSC]["value"]);
+			var scValueDesc = (rptInfoStdArray[iSC]["valueDesc"] != null) ? String(rptInfoStdArray[iSC]["valueDesc"]) : "";
+			var parameterName = "";
+			
+			if(scValue.indexOf(departmentName) != -1)
+			{								
+				scValue = mapDepartmentName(scValue);				
+			}
+
+			if (scValue.indexOf("$$") < 0)
+				parameterName = "$$" + scValue.replace(/\s+/g, '') + "$$";
+			else
+				parameterName = scValue;			
+			
+			addParameter(eParamsHash, parameterName, scValueDesc);
+		}
+	}
+
+	return eParamsHash;
+}

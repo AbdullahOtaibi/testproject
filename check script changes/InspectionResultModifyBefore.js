@@ -104,7 +104,11 @@ if (inspId > 0) // if we have fixed the parameter problem
 	inspObj = aa.inspection.getInspection(capId,inspId).getOutput();  // current inspection object
 	inspGroup = inspObj.getInspection().getInspectionGroup();
 	inspSchedDate = inspObj.getScheduledDate().getMonth() + "/" + inspObj.getScheduledDate().getDayOfMonth() + "/" + inspObj.getScheduledDate().getYear();
-	inspResultDate = inspObj.getInspectionStatusDate().getMonth() + "/" + inspObj.getInspectionStatusDate().getDayOfMonth() + "/" + inspObj.getInspectionStatusDate().getYear();
+	var inspResultDate = null;
+	if (inspObj.getInspectionStatusDate() != null) 
+	{	
+		inspResultDate = inspObj.getInspectionStatusDate().getMonth() + "/" + inspObj.getInspectionStatusDate().getDayOfMonth() + "/" + inspObj.getInspectionStatusDate().getYear();
+	}
 	logDebug("inspId " + inspId);
 	logDebug("inspGroup = " + inspGroup);
 	logDebug("inspSchedDate = " + inspSchedDate);

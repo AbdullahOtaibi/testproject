@@ -172,13 +172,13 @@ for (thisResult in resultObjArray) {
 		inspSchedDate = inspObj.getScheduledDate().getMonth() + "/" + inspObj.getScheduledDate().getDayOfMonth() + "/" + inspObj.getScheduledDate().getYear();
 	}
 	else {
-		inspSchedDate = jsDateToASIDate(new Date());
+		inspSchedDate = jsDateToASIDate(new Date(aa.date.getCurrentDate()));
 	}
 	if (inspObj.getInspectionStatusDate()){
 		inspResultDate = inspObj.getInspectionStatusDate().getMonth() + "/" + inspObj.getInspectionStatusDate().getDayOfMonth() + "/" + inspObj.getInspectionStatusDate().getYear();
 	}
 	else{
-		inspResultDate = jsDateToASIDate(new Date());
+		inspResultDate = jsDateToASIDate(new Date(aa.date.getCurrentDate()));
 	}
 	inspTotalTime = inspObj.getTimeTotal();
 	logDebug("Inspection #" + thisResult);

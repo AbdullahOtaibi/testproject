@@ -1,4 +1,4 @@
-/*------------------------------------------------------------------------------------------------------/
+ /*------------------------------------------------------------------------------------------------------/
 | Program : InspectionMultipleScheduleBefore.js
 | Event   : InspectionMultipleScheduleBefore
 |
@@ -154,9 +154,9 @@ for (thisResult in schedObjArray) {
     	aa.env.setValue("PermitId3",capId.getID3());
     
 		if (SA) {
-			eval(getScriptText("INCLUDES_ACCELA_GLOBALS", SA));
+			eval(getScriptText("INCLUDES_ACCELA_GLOBALS", SA, useCustomScriptFile));
 		} else {
-			eval(getScriptText("INCLUDES_ACCELA_GLOBALS"));
+			eval(getScriptText("INCLUDES_ACCELA_GLOBALS", null, useCustomScriptFile));
 		}
 
 		resultCapIdStringSave = capIDString;

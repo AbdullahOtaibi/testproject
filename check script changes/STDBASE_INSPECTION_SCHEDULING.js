@@ -164,7 +164,7 @@ function inspectionScheduling(capId, rules) {
 		if (!matches(range, null, "", 0)) {
 			if (rangeType != "Days") {
 				if (rangeType = "Months") {
-					var today = new Date();
+					var today = new Date(aa.date.getCurrentDate());
 					var outDate = addMonths(today, range);
 					daysToSched = dateDiff(today, outDate).toFixed();
 				} else {

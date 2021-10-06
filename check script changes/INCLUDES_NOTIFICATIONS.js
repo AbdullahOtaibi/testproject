@@ -33,6 +33,27 @@ function processBatchNotification(recordIdObjectArray, searchRules, noticeRules)
         var excludeRecordsArray = searchRules.excludeRecordType;
         var excludeRecordStatusArray = searchRules.excludeRecordStatus;
         var adminEmail = searchRules.adminEmail;
+		var batchJobName = aa.env.getValue("BatchJobName") ; 
+		if(  isEmptyOrNull(adminEmail) &&  !isEmptyOrNull(batchJobName) ) 
+		{
+			
+	var batchEngineObj =  aa.proxyInvoker.newInstance("com.accela.v360.batchjob.BatchEngineBusiness");
+    if(batchEngineObj.getSuccess())
+	{
+		var agencyName =  aa.getServiceProviderCode() ;
+		logDebug("agencyName:" +agencyName  + " batchJobName:" +batchJobName ) ;
+		var batchJob = batchEngineObj.getOutput().getBatchJobByName(agencyName ,batchJobName)  ;
+		if( batchJob != null )
+			{
+			var jobEmailID = batchJob.getEmailID();
+			logDebug("fetch email from job details:" +jobEmailID)
+			if(!isEmptyOrNull(jobEmailID)) 
+			{
+				adminEmail =jobEmailID 
+			}
+			}
+	  }
+		}
         var batchResultEmailTemplate = searchRules.batchResultEmailTemplate;
         var agencyReplyEmail = lookup("ACA_EMAIL_TO_AND_FROM_SETTING", "RENEW_LICENSE_AUTO_ISSUANCE_MAILFROM");
         var acaURL = lookup("ACA_CONFIGS", "ACA_SITE");
@@ -83,9 +104,29 @@ function processBatchNotification(recordIdObjectArray, searchRules, noticeRules)
             var b1ExpDate = thisRecord.getExpirationDate();
             logDebug("Expiration date: " + b1ExpDate)
 
+            //use values configured in JSON (search JSON) or use Default
+            var nextNotifDateGrp=null,nextNotifDateFld=null;
+            if(searchRules.hasOwnProperty("nextDateField") && searchRules.nextDateField!=null && searchRules.nextDateField!=""){
+            	var tmpJsonVal = searchRules.nextDateField.split(".");
+            	nextNotifDateGrp = tmpJsonVal[0];
+            	nextNotifDateFld = tmpJsonVal[1];
+            }else{
+            	nextNotifDateGrp = null;
+            	nextNotifDateFld = "Next Notification Date";
+            }
+            var nextNotifGrp=null,nextNotifFld=null;
+            if(searchRules.hasOwnProperty("nextNotificationField") && searchRules.nextNotificationField!=null && searchRules.nextNotificationField!=""){
+            	var tmpJsonVal = searchRules.nextNotificationField.split(".");
+            	nextNotifGrp = tmpJsonVal[0];
+            	nextNotifFld = tmpJsonVal[1];
+            }else{
+            	nextNotifGrp = null;
+            	nextNotifFld = "Next Notification";
+            }
+            
             //check record for next notification
-            var thisNextNotificationDate = thisRecord.getASI(null, "Next Notification Date");
-            var thisNextNotification = thisRecord.getASI(null, "Next Notification");
+            var thisNextNotificationDate = thisRecord.getASI(nextNotifDateGrp, nextNotifDateFld);
+            var thisNextNotification = thisRecord.getASI(nextNotifGrp, nextNotifFld);
             logDebug("thisNextNotification: " + thisNextNotification);
             if (!thisNextNotification) {
                 thisNextNotification = firstNotice;
@@ -137,6 +178,7 @@ function processBatchNotification(recordIdObjectArray, searchRules, noticeRules)
             var nextNotification = myRules.nextNotification;
             var inspectionType = myRules.inspectionType;
             var scheduleOutDays = myRules.scheduleOutDays;
+            var cancelAllInspections = myRules.cancelAllInspections ;
 
 
             // validate configuration
@@ -164,7 +206,8 @@ function processBatchNotification(recordIdObjectArray, searchRules, noticeRules)
             logDebug("updateWorkflowStatus: " + updateWorkflowStatus);
             logDebug("nextNotificationDays: " + nextNotificationDays);
             logDebug("nextNotification: " + nextNotification);
-
+            logDebug("cancelAllInspections:" + cancelAllInspections ) ; 
+         
             // TO DO: add validation of rule params
 
             // update expiration status
@@ -193,12 +236,12 @@ function processBatchNotification(recordIdObjectArray, searchRules, noticeRules)
             if (addRecordToMailerSet) statMailerSetCount++;
 
             // update next notification and next notification date custom fields
-            thisRecord.editASI(null, "Next Notification", nextNotification);
+            thisRecord.editASI(nextNotifGrp, nextNotifFld, nextNotification);
             var nextNotificationDate = "";
             if (nextNotificationDays != "") {
                 nextNotificationDate = dateAdd(b1ExpDate, parseInt(-nextNotificationDays));
             }
-            thisRecord.editASI(null, "Next Notification Date", nextNotificationDate);
+            thisRecord.editASI(nextNotifDateGrp, nextNotifDateFld, nextNotificationDate);
             //logDebug("nextNotification: " + nextNotification);
             //logDebug("nextNotificationDate: " + nextNotificationDate);
 
@@ -206,6 +249,11 @@ function processBatchNotification(recordIdObjectArray, searchRules, noticeRules)
             if (inspectionType != null && inspectionType != "" && scheduleOutDays != null && scheduleOutDays != "") {
                 scheduleInspection(inspectionType, scheduleOutDays);
             }
+		    //cancel All Inspections 
+            if(cancelAllInspections)
+        	{
+        	 thisRecord.cancelAllInspection() ;
+        	}
 
         }
 
@@ -365,8 +413,38 @@ function prepAndSendNotification(agencyReplyEmail, contactTypesArray, acaURL, no
         if (!matches(tContactObj.people.getEmail(), null, undefined, "")) {
             logDebug("Contact Email: " + tContactObj.people.getEmail());
             var eParams = aa.util.newHashtable();
-            addParameter(eParams, "$$recordTypeAlias$$", capTypeAlias);
-            getRecordParams4Notification(eParams);
+            addParameter(eParams, "$$recordTypeAlias$$", capTypeAlias);  
+			getRecordParams4Notification(eParams);
+			addParameter(eParams, "$$recordAlias$$", capTypeAlias);
+			addParameter(eParams, "$$recordStatus$$", capStatus);
+			addParameter(eParams, "$$balance$$", balanceDue);
+			addParameter(eParams, "$$recordName$$",capName );			
+			var capAddresses = aa.address.getAddressByCapId(capId);
+				if (capAddresses.getSuccess()) {
+					capAddresses = capAddresses.getOutput();
+					if (capAddresses != null && capAddresses.length > 0) {
+						capAddresses = capAddresses[0];
+						var addressVar = "";
+						addressVar = capAddresses.getHouseNumberStart() + " ";
+						addressVar = addressVar + capAddresses.getStreetName() + " ";
+						addressVar = addressVar + capAddresses.getCity() + " ";
+						addressVar = addressVar + capAddresses.getState() + " ";
+						addressVar = addressVar + capAddresses.getZip();
+						addParameter(eParams, "$$FullAddress$$", addressVar);
+					}
+				}
+				
+				var b1ExpResult = aa.expiration.getLicensesByCapID(capId );
+				if(b1ExpResult.getSuccess())
+					{
+					var b1Exp = b1ExpResult.getOutput();
+					var tmpDate = b1Exp.getExpDate(); 
+					if(tmpDate)
+						{
+						var expirationDate =  tmpDate.getMonth() + "/" + tmpDate.getDayOfMonth() + "/" + tmpDate.getYear(); 
+						addParameter(eParams, "$$ExpirationDate$$", expirationDate);
+						}
+					}
             getACARecordParam4Notification(eParams, acaURL);
             tContactObj.getEmailTemplateParams(eParams, "Contact");
             //getInspectionResultParams4Notification(eParams);
@@ -475,4 +553,8 @@ function getJSONRulesForNotification(rules, recordType, notification) {
 
         }
     }
+}
+
+function isEmptyOrNull(value) {
+	return value == null || value === undefined || String(value) == "";
 }

@@ -97,9 +97,6 @@ var scriptSuffix = "LICENSE_ISSUANCE";
 // CONF_{SOLUTION}_LICENSE_ISSUANCE
 // {SOLUTION} = AS DEFINED IN THE "SOLUTION MAPPING" STANDARD CHOICE
 
-//declared global so POST_SCRIPT can access and use the value.
-var rNewLicId = "";
-
 try {
 	// This should be included in all Configurable Scripts
 	//try to get CONFIGURABLE_SCRIPTS_COMMON from Non-Master, if not found, get from Master
@@ -157,7 +154,7 @@ function licenseIssuance(itemCapId, recordSettings) {
 	var rIssuedStatus = handleUndefined(recordSettings.issuedStatus, false);
 	var rLicTable = handleUndefined(recordSettings.licenseTable, false);
 	var rCustomExpirationFunction = handleUndefined(recordSettings.customExpirationFunction, false);
-	var rHasParent, rLicAppArray, rNewLicIdString, rVehData, rChildVehId, rC1ExpResult, rB1Model;
+	var rHasParent, rLicAppArray, rNewLicId, rNewLicIdString, rVehData, rChildVehId, rC1ExpResult, rB1Model;
 	var capIdsArray = new Array();
 	var usageType = TO_PARENT;
 
@@ -352,77 +349,75 @@ function licenseIssuance(itemCapId, recordSettings) {
 		rLicChildArray = prepareAppTypeArray(rLicChildArray);
 
 		//anything went wrong in prepareAppTypeArray()
-		if (!rLicChildArray) {
-			continue;
-		}
-
-		rLicTable = loadASITable(recordSettings.licenseTable);
-		for (x in rLicTable) {
-			rVehData = rLicTable[x];
-			if (rHasParent) {
-				rChildVehId = createChild(rLicChildArray[0], rLicChildArray[1], rLicChildArray[2], rLicChildArray[3], null, rNewLicId);
-			} else {
-				rChildVehId = createChild(rLicChildArray[0], rLicChildArray[1], rLicChildArray[2], rLicChildArray[3], null, itemCapId);
-			}
-			if (rIssuedStatus != null && rIssuedStatus != "")
-				updateAppStatus(rIssuedStatus, "", rChildVehId);
-
-			rC1ExpResult = aa.expiration.getLicensesByCapID(rChildVehId).getOutput();
-
-			if (rC1ExpResult != null && rC1ExpResult.getB1Expiration() != null) {
-				//Get Next Expiration Date if using Expiration Code
-				if (recordSettings.expirationType == "Expiration Code") {
-					var rExpBiz = aa.proxyInvoker.newInstance("com.accela.aa.license.expiration.ExpirationBusiness").getOutput();
-					rB1Model = rC1ExpResult.getB1Expiration();
-
-					rNextDate = rExpBiz.getNextExpDate(rB1Model);
-					rC1ExpResult.setExpDate(aa.date.parseDate(dateAdd(rNextDate, 0)));
+		if (rLicChildArray) {
+			rLicTable = loadASITable(recordSettings.licenseTable);
+			for (x in rLicTable) {
+				rVehData = rLicTable[x];
+				if (rHasParent) {
+					rChildVehId = createChild(rLicChildArray[0], rLicChildArray[1], rLicChildArray[2], rLicChildArray[3], null, rNewLicId);
+				} else {
+					rChildVehId = createChild(rLicChildArray[0], rLicChildArray[1], rLicChildArray[2], rLicChildArray[3], null, itemCapId);
 				}
+				if (rIssuedStatus != null && rIssuedStatus != "")
+					updateAppStatus(rIssuedStatus, "", rChildVehId);
 
-				if (recordSettings.expirationType == "Days") {
+				rC1ExpResult = aa.expiration.getLicensesByCapID(rChildVehId).getOutput();
 
-					var originationDate = recordSettings.originationDate;
-					var orgInitDate = aa.util.now();
-					if (originationDate != null && originationDate.equalsIgnoreCase("File Date")) {
-						var thisCap = aa.cap.getCap(capId).getOutput();
-						orgInitDate = aa.util.formatDate(thisCap.getCapModel().getFileDate(), "MM/dd/yyyy");
-					} else if (originationDate != null && originationDate.equalsIgnoreCase("Issued Date")) {
-						orgInitDate = aa.util.now();
-					} else {
-						logDebug("**WARN originationDate type not supported " + originationDate + " used now() init value");
+				if (rC1ExpResult != null && rC1ExpResult.getB1Expiration() != null) {
+					//Get Next Expiration Date if using Expiration Code
+					if (recordSettings.expirationType == "Expiration Code") {
+						var rExpBiz = aa.proxyInvoker.newInstance("com.accela.aa.license.expiration.ExpirationBusiness").getOutput();
+						rB1Model = rC1ExpResult.getB1Expiration();
+
+						rNextDate = rExpBiz.getNextExpDate(rB1Model);
+						rC1ExpResult.setExpDate(aa.date.parseDate(dateAdd(rNextDate, 0)));
 					}
 
-					rC1ExpResult.setExpDate(aa.date.parseDate(dateAdd(orgInitDate, recordSettings.expirationPeriod)));
-				}
-				if (recordSettings.expirationType == "Function" && rCustomExpirationFunction != null && rCustomExpirationFunction != "") {
-					var dateCalculationFuntion = rCustomExpirationFunction + "( rC1ExpResult )";
-					var dateResult = eval("(" + dateCalculationFuntion + ")");
-					if (dateResult instanceof Date) {
-						rC1ExpResult.setExpDate(aa.date.parseDate(dateAdd(dateResult, 0)));
+					if (recordSettings.expirationType == "Days") {
+
+						var originationDate = recordSettings.originationDate;
+						var orgInitDate = aa.util.now();
+						if (originationDate != null && originationDate.equalsIgnoreCase("File Date")) {
+							var thisCap = aa.cap.getCap(capId).getOutput();
+							orgInitDate = aa.util.formatDate(thisCap.getCapModel().getFileDate(), "MM/dd/yyyy");
+						} else if (originationDate != null && originationDate.equalsIgnoreCase("Issued Date")) {
+							orgInitDate = aa.util.now();
+						} else {
+							logDebug("**WARN originationDate type not supported " + originationDate + " used now() init value");
+						}
+
+						rC1ExpResult.setExpDate(aa.date.parseDate(dateAdd(orgInitDate, recordSettings.expirationPeriod)));
 					}
+					if (recordSettings.expirationType == "Function" && rCustomExpirationFunction != null && rCustomExpirationFunction != "") {
+						var dateCalculationFuntion = rCustomExpirationFunction + "( rC1ExpResult )";
+						var dateResult = eval("(" + dateCalculationFuntion + ")");
+						if (dateResult instanceof Date) {
+							rC1ExpResult.setExpDate(aa.date.parseDate(dateAdd(dateResult, 0)));
+						}
+					}
+
+					rC1ExpResult.setExpStatus(rIssuedStatus);
+					aa.expiration.editB1Expiration(rC1ExpResult.getB1Expiration());
+				} else {
+					logDebug("**WARN rC1ExpResult is null for created Child " + rChildVehId);
 				}
 
-				rC1ExpResult.setExpStatus(rIssuedStatus);
-				aa.expiration.editB1Expiration(rC1ExpResult.getB1Expiration());
-			} else {
-				logDebug("**WARN rC1ExpResult is null for created Child " + rChildVehId);
+				var ASITRow = UpdateASITRow(x, recordSettings.recordIdField, rChildVehId.getCustomID());
+				ASITRowsArray.push(ASITRow);
+				if (recordSettings.createLP && rNewLP != null && rNewLP.length > 0) {
+					aa.licenseScript.associateLpWithCap(rChildVehId, rThisLP);
+				}
 			}
 
-			var ASITRow = UpdateASITRow(x, recordSettings.recordIdField, rChildVehId.getCustomID());
-			ASITRowsArray.push(ASITRow);
-			if (recordSettings.createLP && rNewLP != null && rNewLP.length > 0) {
-				aa.licenseScript.associateLpWithCap(rChildVehId, rThisLP);
-			}
-		}
+			if (rNewLicId && rNewLicId != null && rNewLicId != "") {
+				if (ASITRowsArray.length > 0)
+					updateASITColumns(ASITRowsArray, recordSettings.licenseTable);
 
-		if (rNewLicId && rNewLicId != null && rNewLicId != "") {
-			if (ASITRowsArray.length > 0)
-				updateASITColumns(ASITRowsArray, recordSettings.licenseTable);
-
-			//// moved here because  the script update the ASIT on the application and need to copy the updated data to the license.
-			if (recordSettings.copyCT)
-				copyASITables(itemCapId, rNewLicId);
-		}//rNewLicId is OK
+				//// moved here because  the script update the ASIT on the application and need to copy the updated data to the license.
+				if (recordSettings.copyCT)
+					copyASITables(itemCapId, rNewLicId);
+			}//rNewLicId is OK
+		}//rLicChild array OK
 	}
 }
 

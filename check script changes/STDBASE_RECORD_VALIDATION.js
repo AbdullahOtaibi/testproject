@@ -84,8 +84,6 @@ Available Attributes for each type:
 - Licensed Professional: All Custom Attributes, (licType,lastName,firstName,businessName,address1,city,state,zip,country,email,phone1,phone2,lastRenewalDate,licExpirationDate,FEIN,gender,birthDate)
 - Contact: All Custom Attributes, (firstName,lastName,middleName,businessName,contactSeqNumber,contactType,relation,phone1,phone2,email,addressLine1,addressLine2,city,state,zip,fax,notes,country,fullName,peopleModel)
  */
-
-var mainValidationMsg = "";
 try {
 	//try to get CONFIGURABLE_SCRIPTS_COMMON from Non-Master, if not found, get from Master
 	var configurableCommonContent = getScriptText("CONFIGURABLE_SCRIPTS_COMMON");
@@ -96,7 +94,7 @@ try {
 	}
 
 	var scriptSuffix = "RECORD_VALIDATION";
-
+	
 	var settingsArray = [];
 	isConfigurableScript(settingsArray, scriptSuffix);
 	for (s in settingsArray) {
@@ -121,11 +119,7 @@ try {
 		}
 	}
 
-	showValidationMessage();
-
 } catch (ex) {
-	mainValidationMsg += "<br><br>** Error in record Validation";
-	showValidationMessage();
 	logDebug("**ERROR: Exception while verifying the rules for " + scriptSuffix + ". Error: " + ex);
 }
 
@@ -211,6 +205,9 @@ function validateRecord(rules) {
 				if (contactsArray[ca]["contactType"] == requiredContactArray[con]) {
 					isExists = true;
 					contactrequiredCount += 1;
+					
+					//contactLabel += requiredContactArray[con] + ",";
+
 				}
 
 			}
@@ -242,18 +239,20 @@ function validateRecord(rules) {
 		}
 
 	}
-
+	
 	// this to  check if the record has balance or not.
 	if (rules.criteria.hasOwnProperty("allowBalance") && !rules.criteria.allowBalance) {
 		var capDetails = aa.cap.getCapDetail(capId).getOutput();
 		if (capDetails.getBalance() > 0) {
 			validationMessage += '</br>' + " this record has balance " + capDetails.getBalance() + '</br>';
-		} else {
+		}else{
 			if (rules.criteria.chkInvoicedFees) {
 				var feesArr = loadFees(capId);
 				for ( var i in feesArr) {
 					if (feesArr[i].status == "NEW") {
-						validationMessage += '</br>' + " there are fees assessed but not invoiced " + '</br>';
+						validationMessage += '</br>'
+							+ " there are fees assessed but not invoiced "
+							+ '</br>';
 						break;
 					}
 				}
@@ -261,7 +260,7 @@ function validateRecord(rules) {
 		}
 
 	}
-
+	
 	// this to check the parent records for the current record
 	if (!isEmptyOrNull(rules.criteria.parentRequired)) {
 		var parentRequiredArray = rules.criteria.parentRequired;
@@ -460,29 +459,20 @@ function validateRecord(rules) {
 
 		}
 	}
-
 	if (validationMessage != "") {
-		mainValidationMsg += (rules.action.validationMessage == null || rules.action.validationMessage == "") ? validationMessage : rules.action.validationMessage;
-		mainValidationMsg += "<br>";
-	}
+		var validationMessageText = (rules.action.validationMessage == null || rules.action.validationMessage == "") ? validationMessage : rules.action.validationMessage;
 
-}
+		showMessage = true;
+		cancel = true;
+		if (isPublicUser) {
+			aa.env.setValue("ErrorCode", "1");
+			aa.env.setValue("ErrorMessage", validationMessageText);
+		} else {
+			comment(validationMessageText);
+		}
 
-function showValidationMessage() {
-	if (mainValidationMsg == null || mainValidationMsg == "") {
-		return;
-	}
-
-	showMessage = true;
-	cancel = true;
-	if (isPublicUser) {
-		aa.env.setValue("ErrorCode", "1");
-		aa.env.setValue("ErrorMessage", mainValidationMsg);
-	} else {
-		comment(mainValidationMsg);
 	}
 }
-
 /**
  * this user will return the assigned user
  * @returns user id if the record already assigned else will return false
@@ -501,21 +491,4 @@ function getAssignedUser() {
 		}
 	} else
 		return false;
-}
-
-function getScriptText(vScriptName, servProvCode, useProductScripts) {
-	if (!servProvCode)
-		servProvCode = aa.getServiceProviderCode();
-	vScriptName = vScriptName.toUpperCase();
-	var emseBiz = aa.proxyInvoker.newInstance("com.accela.aa.emse.emse.EMSEBusiness").getOutput();
-	try {
-		if (useProductScripts) {
-			var emseScript = emseBiz.getMasterScript(aa.getServiceProviderCode(), vScriptName);
-		} else {
-			var emseScript = emseBiz.getScriptByPK(aa.getServiceProviderCode(), vScriptName, "ADMIN");
-		}
-		return emseScript.getScriptText() + "";
-	} catch (err) {
-		return "";
-	}
 }

@@ -72,9 +72,9 @@ function run() {
 			batch.log("MESSAGE", e)
 		}
 		batch.log("DEBUG", "Start of Job", false)
-		var startDate = new Date();
+		var startDate = new Date(aa.util.now());
 		batch.execute();
-		var endDate = new Date();
+		var endDate = new Date(aa.util.now());
 		var elapsed = (endDate - startDate) / 1000;
 		batch.log("DEBUG", "End of Job: Elapsed Time : " + elapsed + " Seconds", false)
 		aa.env.setValue("ErrorCode", "0");
@@ -100,7 +100,7 @@ function logException(expString) {
  * Time tracker to timeout batch job
  */
 function elapsed() {
-	var thisDate = new Date();
+	var thisDate = new Date(aa.util.now());
 	var thisTime = thisDate.getTime();
 	return ((thisTime - startTime) / 1000)
 }

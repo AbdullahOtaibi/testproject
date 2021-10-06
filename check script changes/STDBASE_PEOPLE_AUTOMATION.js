@@ -717,7 +717,7 @@ function addAKA(row) {
 	akaModel.setFullName(row["FullName"]);
 	akaModel.setStartDate(new Date(row["StartDate"]));
 	akaModel.setEndDate(new Date(row["EndDate"]));
-	auditModel.setAuditDate(new Date());
+	auditModel.setAuditDate(new Date(aa.date.getCurrentDate()));
 	auditModel.setAuditStatus("A");
 	auditModel.setAuditID("ADMIN");
 	akaModel.setAuditModel(auditModel);
